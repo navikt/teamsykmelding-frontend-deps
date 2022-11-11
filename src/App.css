@@ -1,0 +1,8 @@
+#root {
+  max-width: 1280px;
+  padding: 2rem;
+}
+
+.indent {
+    margin-left: 16px;
+}

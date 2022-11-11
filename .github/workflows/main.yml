@@ -1,0 +1,57 @@
+name: Build and deploy main
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOCKER_IMAGE: ghcr.io/navikt/${{ github.repository }}:${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v2
+        with:
+          node-version: "18.x"
+
+      - name: Install dependencies
+        run: yarn
+
+      - name: Build
+        run: yarn build
+
+      - name: Login to GitHub Docker Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker image tag with short sha
+        id: dockertag
+        run: echo "::set-output name=docker_img::ghcr.io/${{ github.repository }}:$(git rev-parse --short HEAD)"
+
+      - name: Build and push the Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ${{ env.DOCKER_IMAGE }}
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: nais/deploy/actions/deploy@v1
+        if: github.ref == 'refs/heads/main'
+        env:
+          APIKEY: ${{ secrets.NAIS_DEPLOY_APIKEY }}
+          CLUSTER: prod-gcp
+          RESOURCE: nais.yml
+          IMAGE: ${{ env.DOCKER_IMAGE }}
